@@ -1,12 +1,24 @@
+# Copyright 2015 Erik Van Hamme
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Collect all the module.mk files from the module_dirs.
 module_mks := $(patsubst %,%/module.mk,$(module_dirs))
 
 # These variables will be expanded by the module.mk files.
-includepaths :=
+includes :=
 sources :=
 headers :=
-test_sources :=
-test_headers :=
 
 # Load all the module.mk files.
 include $(module_mks)
@@ -15,20 +27,24 @@ include $(module_mks)
 builddir ?= build
 
 # Create the list of object names.
-objects := $(patsubst %,$(builddir)/mut/%.o,$(sources))
-test_objects := $(patsubst %,$(builddir)/test/%.o,$(test_sources))
-object_dirs := $(sort $(dir $(objects)) $(dir $(test_objects)))
+objects := $(patsubst %,$(builddir)/%.o,$(sources))
+object_dirs := $(sort $(dir $(objects)))
+
+# Find the current directory.
+makefile_path := $(abspath $(firstword $(MAKEFILE_LIST)))
+current_dir := $(patsubst %/,%,$(dir $(makefile_path)))
 
 # Google test related variables. Variable gtest should be set before this mk is included.
+# The include is added as an absolute path because gcov will pick it up otherwise.
 gtest_dir ?= dep
 gtest_file := $(gtest).zip
 gtest_path := $(gtest_dir)/$(gtest_file)
 gtest_builddir := $(builddir)/$(gtest)
 gtest_libdir := $(builddir)/$(gtest)/lib/.libs
-gtest_incdir := $(builddir)/$(gtest)/include
+gtest_incdir := $(current_dir)/$(builddir)/$(gtest)/include
 
 # Build the includes list.
-includepaths += $(patsubst %,-I %,$(sort $(dir $(headers)) $(dir $(test_headers))) $(gtest_incdir))
+includepaths := $(patsubst %,-I %,$(sort $(dir $(headers))) $(gtest_incdir) $(includes))
 
 # Tools.
 cc := g++
@@ -44,12 +60,12 @@ warn_cpp := -Wnoexcept -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel 
 
 # Dependency generation.
 depgen = -MMD -MP -MF"$(@:%.o=%.d)"
-deps := $(patsubst %.o,%.d,$(objects) $(test_objects))
+deps := $(patsubst %.o,%.d,$(objects))
 
 # Compiler flags.
-cpp_cflags_common = $(depgen) $(warn_common) $(warn_cpp) -c -std=c++11 -O0 -fno-exceptions -fno-rtti
-cpp_cflags = $(cpp_cflags_common) -fprofile-arcs -ftest-coverage -g
-cpp_test_cflags = $(cpp_cflags_common)
+cflags_common = $(depgen) $(warn_common) 
+cppflags = $(cflags_common) $(warn_cpp) -c -std=c++11 -O0 -fno-exceptions -fno-rtti \
+	-fprofile-arcs -ftest-coverage -g
 
 # Linker flags.
 ldflags = -L$(gtest_libdir) -lgtest -lpthread -fprofile-arcs
@@ -66,21 +82,19 @@ note_files := $(patsubst %.o,%.gcno,$(objects))
 all: $(object_dirs) $(executable)
 
 info:
-	@echo "module_dirs:     $(module_dirs)"
-	@echo "module_mks:      $(module_mks)"
-	@echo "sources:         $(sources)"
-	@echo "headers:         $(headers)"
-	@echo "test_sources:    $(test_sources)"
-	@echo "test_headers:    $(test_headers)"
-	@echo "objects:         $(objects)"
-	@echo "test_objects:    $(test_objects)"
-	@echo "builddir:        $(builddir)"
-	@echo "includepaths:    $(includepaths)"
-	@echo "object_dirs:     $(object_dirs)"
-	@echo "cpp_cflags:      $(cpp_cflags)"
-	@echo "cpp_test_cflags: $(cpp_test_cflags)"
-	@echo "deps:            $(deps)"
-	@echo "note_files:      $(note_files)"
+	@echo "module_dirs:   $(module_dirs)"
+	@echo "module_mks:    $(module_mks)"
+	@echo "sources:       $(sources)"
+	@echo "headers:       $(headers)"
+	@echo "objects:       $(objects)"
+	@echo "builddir:      $(builddir)"
+	@echo "includepaths:  $(includepaths)"
+	@echo "object_dirs:   $(object_dirs)"
+	@echo "cpp_cflags:    $(cpp_cflags)"
+	@echo "deps:          $(deps)"
+	@echo "note_files:    $(note_files)"
+	@echo "makefile_path: $(makefile_path)"
+	@echo "current_dir:   $(current_dir)"
 
 prepare:
 	mkdir -p $(builddir)
@@ -94,19 +108,19 @@ distclean:
 	rm -rf $(builddir)
 
 clean:
-	rm -rf $(object_dirs) $(executable)
+	rm -rf $(object_dirs) $(executable) $(builddir)/*.gcov
 
 $(object_dirs):
 	mkdir -p $(object_dirs)
 
-$(executable): $(objects) $(test_objects)
-	$(ld) $(objects) $(test_objects) $(ldflags) -o $(executable)
+$(executable): $(objects)
+	$(ld) $(objects) $(ldflags) -o $(executable)
 
 run: $(executable)
 	LD_LIBRARY_PATH="$(gtest_libdir)" ./$(executable)
 
 coverage: run $(note_files)
-	$(gcov) $(note_files)
+	$(gcov) -r -s $(gtest_builddir) $(note_files)
 	mv *.gcov $(builddir)
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -115,10 +129,6 @@ ifneq ($(strip $(deps)),)
 endif
 endif
 
-$(builddir)/mut/%.cpp.o : %.cpp 
-	$(cc) $(cpp_cflags) $(includepaths) -o "$@" "$<"
-
-$(builddir)/test/%.cpp.o : %.cpp
-	$(cc) $(cpp_test_cflags) $(includepaths) -o "$@" "$<"
-	
+$(builddir)/%.cpp.o : %.cpp 
+	$(cc) $(cppflags) $(includepaths) -o "$@" "$<"
 
