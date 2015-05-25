@@ -81,7 +81,7 @@ lcov_capture_flags := --capture --base-directory . $(lcov_dirs) \
 	--output-file $(coverage_dir)/$(project).info --quiet --no-external
 lcov_remove_flags := --remove $(coverage_dir)/$(project).info $(patsubst %,%/\*,$(no_coverage)) \
 	--output-file $(coverage_dir)/$(project).info
-genhtml_flags := $(coverage_dir)/$(project).info --output-directory $(coverage_dir)
+genhtml_flags := $(coverage_dir)/$(project).info --output-directory $(coverage_dir) --demangle-cpp
 
 # List of phony targets.
 .PHONY: all info prepare distclean clean run coverage
