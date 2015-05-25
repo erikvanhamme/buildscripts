@@ -30,10 +30,6 @@ builddir ?= build
 objects := $(patsubst %,$(builddir)/%.o,$(sources))
 object_dirs := $(sort $(dir $(objects)))
 
-# Find the current directory.
-makefile_path := $(abspath $(firstword $(MAKEFILE_LIST)))
-current_dir := $(patsubst %/,%,$(dir $(makefile_path)))
-
 # Google test related variables. Variable gtest should be set before this mk is included.
 # The include is added as an absolute path because gcov will pick it up otherwise.
 gtest_dir ?= dep
@@ -41,7 +37,7 @@ gtest_file := $(gtest).zip
 gtest_path := $(gtest_dir)/$(gtest_file)
 gtest_builddir := $(builddir)/$(gtest)
 gtest_libdir := $(builddir)/$(gtest)/lib/.libs
-gtest_incdir := $(current_dir)/$(builddir)/$(gtest)/include
+gtest_incdir := $(builddir)/$(gtest)/include
 
 # Build the includes list.
 includepaths := $(patsubst %,-I %,$(sort $(dir $(headers))) $(gtest_incdir) $(includes))
@@ -49,7 +45,9 @@ includepaths := $(patsubst %,-I %,$(sort $(dir $(headers))) $(gtest_incdir) $(in
 # Tools.
 cc := g++
 ld := g++
-gcov := gcov
+lcov := lcov
+genhtml := genhtml
+browser ?= chromium-browser
 
 # Warnings configuration.
 warn_common := -Werror -Wall -Wextra -Wcast-align -Wcast-qual -Wdisabled-optimization -Wformat=2 \
@@ -73,8 +71,17 @@ ldflags = -L$(gtest_libdir) -lgtest -lpthread -fprofile-arcs
 # Executable for output.
 executable := $(builddir)/$(project)
 
-# Coverage note files.
+# Coverage variables.
+no_coverage += $(builddir)
 note_files := $(patsubst %.o,%.gcno,$(objects))
+coverage_dir := $(builddir)/coverage
+coverage_index := $(abspath $(coverage_dir)/index.html)
+lcov_dirs := $(patsubst %,--directory %,$(sort $(dir $(objects))))
+lcov_capture_flags := --capture --base-directory . $(lcov_dirs) \
+	--output-file $(coverage_dir)/$(project).info --quiet --no-external
+lcov_remove_flags := --remove $(coverage_dir)/$(project).info $(patsubst %,%/\*,$(no_coverage)) \
+	--output-file $(coverage_dir)/$(project).info
+genhtml_flags := $(coverage_dir)/$(project).info --output-directory $(coverage_dir)
 
 # List of phony targets.
 .PHONY: all info prepare distclean clean run coverage
@@ -93,8 +100,7 @@ info:
 	@echo "cpp_cflags:    $(cpp_cflags)"
 	@echo "deps:          $(deps)"
 	@echo "note_files:    $(note_files)"
-	@echo "makefile_path: $(makefile_path)"
-	@echo "current_dir:   $(current_dir)"
+	@echo "lcov_dirs:     $(lcov_dirs)"
 
 prepare:
 	mkdir -p $(builddir)
@@ -108,7 +114,7 @@ distclean:
 	rm -rf $(builddir)
 
 clean:
-	rm -rf $(object_dirs) $(executable) $(builddir)/*.gcov
+	rm -rf $(object_dirs) $(executable) $(coverage_dir)
 
 $(object_dirs):
 	mkdir -p $(object_dirs)
@@ -119,9 +125,14 @@ $(executable): $(objects)
 run: $(executable)
 	LD_LIBRARY_PATH="$(gtest_libdir)" ./$(executable)
 
-coverage: run $(note_files)
-	$(gcov) -r -s $(gtest_builddir) $(note_files)
-	mv *.gcov $(builddir)
+$(coverage_dir):
+	mkdir -p $(coverage_dir)
+
+coverage: run $(note_files) $(coverage_dir)
+	$(lcov) $(lcov_capture_flags)
+	$(lcov) $(lcov_remove_flags)
+	$(genhtml) $(genhtml_flags)
+	$(browser) $(coverage_index)
 
 ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(strip $(deps)),)
