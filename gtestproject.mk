@@ -63,10 +63,10 @@ deps := $(patsubst %.o,%.d,$(objects))
 # Compiler flags.
 cflags_common = $(depgen) $(warn_common) 
 cppflags = $(cflags_common) $(warn_cpp) -c -std=c++11 -O0 -fno-exceptions -fno-rtti \
-	-fprofile-arcs -ftest-coverage -g
+	-fprofile-arcs -ftest-coverage -g3 -gdwarf-2
 
 # Linker flags.
-ldflags = -L$(gtest_libdir) -lgtest -lpthread -fprofile-arcs
+ldflags = -L$(gtest_libdir) -lgtest -lpthread -fprofile-arcs -Wl,-Map=$(builddir)/$(project).map
 
 # Executable for output.
 executable := $(builddir)/$(project)
@@ -114,7 +114,7 @@ distclean:
 	rm -rf $(builddir)
 
 clean:
-	rm -rf $(object_dirs) $(executable) $(coverage_dir)
+	rm -rf $(object_dirs) $(executable) $(coverage_dir) $(builddir)/$(project).map $(builddir)/*.gcov
 
 $(object_dirs):
 	mkdir -p $(object_dirs)
