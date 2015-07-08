@@ -97,7 +97,7 @@ info:
 	@echo "builddir:      $(builddir)"
 	@echo "includepaths:  $(includepaths)"
 	@echo "object_dirs:   $(object_dirs)"
-	@echo "cpp_cflags:    $(cpp_cflags)"
+	@echo "cppflags:      $(cppflags)"
 	@echo "deps:          $(deps)"
 	@echo "note_files:    $(note_files)"
 	@echo "lcov_dirs:     $(lcov_dirs)"
