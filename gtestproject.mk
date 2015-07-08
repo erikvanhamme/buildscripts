@@ -62,7 +62,7 @@ deps := $(patsubst %.o,%.d,$(objects))
 
 # Compiler flags.
 cflags_common = $(depgen) $(warn_common) 
-cppflags = $(cflags_common) $(warn_cpp) -c -std=c++11 -O0 -fno-exceptions -fno-rtti \
+cppflags = $(cflags_common) $(warn_cpp) -c -std=c++11 -O0 -fno-exceptions -fno-unwind-tables -fno-rtti \
 	-fprofile-arcs -ftest-coverage -g3 -gdwarf-2
 
 # Linker flags.
