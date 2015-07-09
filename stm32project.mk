@@ -19,6 +19,7 @@ module_mks := $(patsubst %,%/module.mk,$(module_dirs))
 includes :=
 sources :=
 headers :=
+systemheaders :=
 
 # Load all the module.mk files.
 include $(module_mks)
@@ -32,7 +33,7 @@ objects := $(patsubst %,$(builddir)/%.o,$(sources))
 object_dirs := $(sort $(dir $(objects)))
 
 # Build the includes list.
-includepaths := $(patsubst %,-I %,$(sort $(dir $(headers))) $(gtest_incdir) $(includes))
+includepaths := $(patsubst %,-I %,$(sort $(dir $(headers))) $(includes)) $(patsubst %,-isystem %,$(sort $(dir $(systemheaders))))
 
 # Tools.
 cc ?= arm-none-eabi-gcc
@@ -99,11 +100,15 @@ info:
 	@echo "module_mks:    $(module_mks)"
 	@echo "sources:       $(sources)"
 	@echo "headers:       $(headers)"
+	@echo "systemheaders: $(systemheaders)"
 	@echo "objects:       $(objects)"
 	@echo "builddir:      $(builddir)"
 	@echo "includepaths:  $(includepaths)"
 	@echo "object_dirs:   $(object_dirs)"
+	@echo "cflags:        $(cflags)"
 	@echo "cpplags:       $(cppflags)"
+	@echo "asflags:       $(asflags)"
+	@echo "ldflags:       $(ldflags)"
 	@echo "deps:          $(deps)"
 
 clean:
