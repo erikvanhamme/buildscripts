@@ -57,10 +57,17 @@ depgen = -MMD -MP -MF"$(@:%.o=%.d)"
 deps := $(patsubst %.o,%.d,$(objects))
 
 # arch is dependent on the chip
+ifeq ($(chip),stm32f303xc)
+arch := -mcpu=cortex-m4 -mthumb -mfloat-abi=softfp -mfpu=fpv4-sp-d16
+defines += -DSTM32F303xC
+chipfamily := stm32f3
+endif
 ifeq ($(chip),stm32f407)
 arch := -mcpu=cortex-m4 -mthumb -mfloat-abi=softfp -mfpu=fpv4-sp-d16
 defines += -DSTM32F407xx
+chipfamily := stm32f4
 endif
+defines += -D$(chipfamily)
 # TODO: consider moving the above to chipsupport.mk and add more support for different chips
 
 # linker script selection
