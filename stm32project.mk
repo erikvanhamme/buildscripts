@@ -16,9 +16,12 @@
 module_mks := $(patsubst %,%/module.mk,$(module_dirs))
 
 # These variables will be expanded by the module.mk files.
+arch :=
 includes :=
 sources :=
 headers :=
+systemincludes :=
+systemsources :=
 systemheaders :=
 
 # Load all the module.mk files.
@@ -29,11 +32,11 @@ buildmode ?= release
 builddir ?= $(buildmode)
 
 # Create the list of object names.
-objects := $(patsubst %,$(builddir)/%.o,$(sources))
+objects := $(patsubst %,$(builddir)/%.o,$(sources)) $(patsubst %,$(builddir)/%sys.o,$(systemsources))
 object_dirs := $(sort $(dir $(objects)))
 
 # Build the includes list.
-includepaths := $(patsubst %,-I %,$(sort $(dir $(headers))) $(includes)) $(patsubst %,-isystem %,$(sort $(dir $(systemheaders))))
+includepaths := $(patsubst %,-I %,$(sort $(dir $(headers))) $(includes)) $(patsubst %,-isystem %,$(sort $(dir $(systemheaders))) $(systemincludes))
 
 # Tools.
 cc ?= arm-none-eabi-gcc
@@ -56,37 +59,41 @@ warn_cpp := -Wnoexcept -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel 
 depgen = -MMD -MP -MF"$(@:%.o=%.d)"
 deps := $(patsubst %.o,%.d,$(objects))
 
-# arch is dependent on the chip
-ifeq ($(chip),stm32f303xc)
-arch := -mcpu=cortex-m4 -mthumb -mfloat-abi=softfp -mfpu=fpv4-sp-d16
-defines += -DSTM32F303xC
-chipfamily := stm32f3
-endif
-ifeq ($(chip),stm32f407)
-arch := -mcpu=cortex-m4 -mthumb -mfloat-abi=softfp -mfpu=fpv4-sp-d16
-defines += -DSTM32F407xx
-chipfamily := stm32f4
-endif
-defines += -D$(chipfamily)
-# TODO: consider moving the above to chipsupport.mk and add more support for different chips
-
 # linker script selection
 ldscript := buildscripts/$(chip)-$(buildmode).ld
 
 # Compiler/assembler flags for release mode.
 ifeq ($(buildmode),release)
+
+# Flags for system files.
+cflags_common_sys = -c $(depgen) -DNDEBUG -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
+cflags_sys = $(cflags_common_sys) -std=c99 -fno-builtin
+cppflags_sys = $(cflags_common_sys) -std=c++11 -O3 -fno-exceptions -fno-unwind-tables -fno-rtti
+asflags_sys = -c -O3
+
+# Flags for application files.
 cflags_common = -c $(depgen) $(warn_common) -DNDEBUG -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
 cflags = $(cflags_common) $(warn_c) -std=c99 -fno-builtin
 cppflags = $(cflags_common) $(warn_cpp) -std=c++11 -O3 -fno-exceptions -fno-unwind-tables -fno-rtti
 asflags = -c -Wall -O3
+
 endif
 
 # Compiler/assembler flags for debug mode.
 ifeq ($(buildmode),debug)
+
+# Flags for system files.
+cflags_common_sys = -c $(depgen) -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
+cflags_sys = $(cflags_common_sys) -std=c99 -fno-builtin
+cppflags_sys = $(cflags_common_sys) -std=c++11 -O0 -fno-exceptions -fno-unwind-tables -fno-rtti -g3 -gdwarf-2
+asflags_sys = -c -O0 -g3 -gdwarf-2
+
+# Flags for application files.
 cflags_common = -c $(depgen) $(warn_common) -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
 cflags = $(cflags_common) $(warn_c) -std=c99 -fno-builtin
 cppflags = $(cflags_common) $(warn_cpp) -std=c++11 -O0 -fno-exceptions -fno-unwind-tables -fno-rtti -g3 -gdwarf-2
 asflags = -c -Wall -O0 -g3 -gdwarf-2
+
 endif
 
 # Linker,objcopy flags. 
@@ -153,4 +160,13 @@ $(builddir)/%.c.o : %.c
 
 $(builddir)/%.cpp.o : %.cpp 
 	$(gpp) $(arch) $(cppflags) $(includepaths) $(defines) -o "$@" "$<"
+
+$(builddir)/%.ssys.o : %.s
+	$(as) $(arch) $(asflags_sys) -o "$@" "$<"
+
+$(builddir)/%.csys.o : %.c
+	$(cc) $(arch) $(cflags_sys) $(includepaths) $(defines) -o "$@" "$<"
+
+$(builddir)/%.cppsys.o : %.cpp 
+	$(gpp) $(arch) $(cppflags_sys) $(includepaths) $(defines) -o "$@" "$<"
 
