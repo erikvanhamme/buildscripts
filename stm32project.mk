@@ -16,22 +16,15 @@
 module_mks := $(patsubst %,%/module.mk,$(module_dirs))
 useflags_mks := $(patsubst %,%/useflags.mk,$(module_dirs))
 
-# These variables will be expanded by the module.mk and useflags.mk files.
-# TODO: consider deleting the headers and systemheaders variables.
-arch :=
-includes :=
-sources :=
-headers :=
-systemincludes :=
-systemsources :=
-systemheaders :=
-
 # Load all useflags.mk files. These file are optional in the modules.
+# These files are loaded first because they help setup the variable $(use)
+# which is used in the module.mk files.
 -include $(useflags_mks)
 
 # Load all the module.mk files.
 include $(module_mks)
 
+# Use flags also become defines.
 defines += $(patsubst %,-D%,$(sort $(use)))
 
 # Default for the build dir, build mode and object target directories.
@@ -43,7 +36,7 @@ objects := $(patsubst %,$(builddir)/%.o,$(sources)) $(patsubst %,$(builddir)/%sy
 object_dirs := $(sort $(dir $(objects)))
 
 # Build the includes list.
-includepaths := $(patsubst %,-I %,$(sort $(dir $(headers))) $(includes)) $(patsubst %,-isystem %,$(sort $(dir $(systemheaders))) $(systemincludes))
+includepaths := $(patsubst %,-I %,$(includes)) $(patsubst %,-isystem %,$(systemincludes))
 
 # Tools.
 cc ?= arm-none-eabi-gcc
@@ -54,14 +47,13 @@ oc ?= arm-none-eabi-objcopy
 os ?= arm-none-eabi-size
 oocd ?= openocd
 
-#TODO: make warn_c and warn_cpp include warn_common and use them directly in wildcard rules. Simplify cflags etc...
 # Warnings configuration.
 warn_common := -Werror -Wall -Wextra -Wcast-align -Wcast-qual -Wdisabled-optimization -Wformat=2 \
 	-Winit-self -Wlogical-op -Wmissing-include-dirs -Wredundant-decls -Wstrict-overflow=5 \
 	-Wno-unused -Wno-variadic-macros -Wno-parentheses -Wshadow
-warn_c := 
-warn_cpp := -Wnoexcept -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -Wold-style-cast \
-	-Wpedantic 
+warn_c := $(warn_common)
+warn_cpp := $(warn_common) -Wnoexcept -Woverloaded-virtual -Wsign-promo -Wstrict-null-sentinel -Wold-style-cast -Wpedantic
+warn_as := -Wall
 
 # Dependency generation.
 depgen = -MMD -MP -MF"$(@:%.o=%.d)"
@@ -72,39 +64,19 @@ ldscript := buildscripts/$(chip)-$(buildmode).ld
 
 # Compiler/assembler flags for release mode.
 ifeq ($(buildmode),release)
-
-# Flags for system files.
-cflags_common_sys = -c $(depgen) -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
-cflags_sys = $(cflags_common_sys) -std=c99 -fno-builtin
-cppflags_sys = $(cflags_common_sys) -std=c++11 -O3 -fno-exceptions -fno-unwind-tables -fno-rtti
-asflags_sys = -c -O3
-
-# Flags for application files.
-cflags_common = -c $(depgen) $(warn_common) -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
-cflags = $(cflags_common) $(warn_c) -std=c99 -fno-builtin
-cppflags = $(cflags_common) $(warn_cpp) -std=c++11 -O3 -fno-exceptions -fno-unwind-tables -fno-rtti
-asflags = -c -Wall -O3
-
-# Add the NDEBUG define in release mode.
+cflags_common = -c $(depgen) -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
+cflags = $(cflags_common) -std=c99 -fno-builtin
+cppflags = $(cflags_common) -std=c++11 -O3 -fno-exceptions -fno-unwind-tables -fno-rtti
+asflags = -c -O3
 defines += -DNDEBUG
-
 endif
 
 # Compiler/assembler flags for debug mode.
 ifeq ($(buildmode),debug)
-
-# Flags for system files.
-cflags_common_sys = -c $(depgen) -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
-cflags_sys = $(cflags_common_sys) -std=c99 -fno-builtin
-cppflags_sys = $(cflags_common_sys) -std=c++11 -O0 -fno-exceptions -fno-unwind-tables -fno-rtti -g3 -gdwarf-2
-asflags_sys = -c -O0 -g3 -gdwarf-2
-
-# Flags for application files.
-cflags_common = -c $(depgen) $(warn_common) -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
-cflags = $(cflags_common) $(warn_c) -std=c99 -fno-builtin
-cppflags = $(cflags_common) $(warn_cpp) -std=c++11 -O0 -fno-exceptions -fno-unwind-tables -fno-rtti -g3 -gdwarf-2
-asflags = -c -Wall -O0 -g3 -gdwarf-2
-
+cflags_common = -c $(depgen) -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
+cflags = $(cflags_common) -std=c99 -fno-builtin
+cppflags = $(cflags_common) -std=c++11 -O0 -fno-exceptions -fno-unwind-tables -fno-rtti -g3 -gdwarf-2
+asflags = -c -O0 -g3 -gdwarf-2
 endif
 
 # Linker,objcopy flags. 
@@ -186,20 +158,20 @@ endif
 endif
 
 $(builddir)/%.s.o : %.s
-	$(as) $(arch) $(asflags) -o "$@" "$<"
+	$(as) $(arch) $(asflags) $(warn_as) -o "$@" "$<"
 
 $(builddir)/%.c.o : %.c
-	$(cc) $(arch) $(cflags) $(includepaths) $(defines) -o "$@" "$<"
+	$(cc) $(arch) $(cflags) $(includepaths) $(defines) $(warn_c) -o "$@" "$<"
 
 $(builddir)/%.cpp.o : %.cpp 
-	$(gpp) $(arch) $(cppflags) $(includepaths) $(defines) -o "$@" "$<"
+	$(gpp) $(arch) $(cppflags) $(includepaths) $(defines) $(warn_cpp) -o "$@" "$<"
 
 $(builddir)/%.ssys.o : %.s
-	$(as) $(arch) $(asflags_sys) -o "$@" "$<"
+	$(as) $(arch) $(asflags) -o "$@" "$<"
 
 $(builddir)/%.csys.o : %.c
-	$(cc) $(arch) $(cflags_sys) $(includepaths) $(defines) -o "$@" "$<"
+	$(cc) $(arch) $(cflags) $(includepaths) $(defines) -o "$@" "$<"
 
 $(builddir)/%.cppsys.o : %.cpp 
-	$(gpp) $(arch) $(cppflags_sys) $(includepaths) $(defines) -o "$@" "$<"
+	$(gpp) $(arch) $(cppflags) $(includepaths) $(defines) -o "$@" "$<"
 
