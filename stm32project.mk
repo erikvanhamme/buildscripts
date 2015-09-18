@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Collect all the module.mk files from the module_dirs.
+# Collect all the module.mk and useflags.mk files from the module_dirs.
 module_mks := $(patsubst %,%/module.mk,$(module_dirs))
+useflags_mks := $(patsubst %,%/useflags.mk,$(module_dirs))
 
-# These variables will be expanded by the module.mk files.
+# These variables will be expanded by the module.mk and useflags.mk files.
+# TODO: consider deleting the headers and systemheaders variables.
 arch :=
 includes :=
 sources :=
@@ -24,8 +26,13 @@ systemincludes :=
 systemsources :=
 systemheaders :=
 
+# Load all useflags.mk files. These file are optional in the modules.
+-include $(useflags_mks)
+
 # Load all the module.mk files.
 include $(module_mks)
+
+defines += $(patsubst %,-D%,$(sort $(use)))
 
 # Default for the build dir, build mode and object target directories.
 buildmode ?= release
@@ -47,6 +54,7 @@ oc ?= arm-none-eabi-objcopy
 os ?= arm-none-eabi-size
 oocd ?= openocd
 
+#TODO: make warn_c and warn_cpp include warn_common and use them directly in wildcard rules. Simplify cflags etc...
 # Warnings configuration.
 warn_common := -Werror -Wall -Wextra -Wcast-align -Wcast-qual -Wdisabled-optimization -Wformat=2 \
 	-Winit-self -Wlogical-op -Wmissing-include-dirs -Wredundant-decls -Wstrict-overflow=5 \
@@ -66,16 +74,19 @@ ldscript := buildscripts/$(chip)-$(buildmode).ld
 ifeq ($(buildmode),release)
 
 # Flags for system files.
-cflags_common_sys = -c $(depgen) -DNDEBUG -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
+cflags_common_sys = -c $(depgen) -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
 cflags_sys = $(cflags_common_sys) -std=c99 -fno-builtin
 cppflags_sys = $(cflags_common_sys) -std=c++11 -O3 -fno-exceptions -fno-unwind-tables -fno-rtti
 asflags_sys = -c -O3
 
 # Flags for application files.
-cflags_common = -c $(depgen) $(warn_common) -DNDEBUG -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
+cflags_common = -c $(depgen) $(warn_common) -ffunction-sections -fdata-sections -Wa,-adhlns="$@.lst" -fmessage-length=0
 cflags = $(cflags_common) $(warn_c) -std=c99 -fno-builtin
 cppflags = $(cflags_common) $(warn_cpp) -std=c++11 -O3 -fno-exceptions -fno-unwind-tables -fno-rtti
 asflags = -c -Wall -O3
+
+# Add the NDEBUG define in release mode.
+defines += -DNDEBUG
 
 endif
 
@@ -105,25 +116,47 @@ elffile := $(builddir)/$(project).elf
 binfile := $(builddir)/$(project).bin
 
 # List of phony targets.
-.PHONY: all info clean flash oocd
+.PHONY: all info info_verbose clean flash oocd
 
 all: $(object_dirs) $(binfile)
 
 info:
 	@echo "module_dirs:   $(module_dirs)"
-	@echo "module_mks:    $(module_mks)"
-	@echo "sources:       $(sources)"
-	@echo "headers:       $(headers)"
-	@echo "systemheaders: $(systemheaders)"
-	@echo "objects:       $(objects)"
+	@echo ""
 	@echo "builddir:      $(builddir)"
+	@echo ""
 	@echo "includepaths:  $(includepaths)"
-	@echo "object_dirs:   $(object_dirs)"
+	@echo ""
 	@echo "cflags:        $(cflags)"
+	@echo ""
 	@echo "cpplags:       $(cppflags)"
+	@echo ""
 	@echo "asflags:       $(asflags)"
+	@echo ""
 	@echo "ldflags:       $(ldflags)"
+	@echo ""
+	@echo "use:           $(sort $(use))"
+	@echo ""
+	@echo "defines:       $(sort $(defines))"
+	@echo ""
+
+info_verbose: info
+	@echo "module_mks:    $(module_mks)"
+	@echo ""
+	@echo "useflags_mks:  $(useflags_mks)"
+	@echo ""
+	@echo "sources:       $(sources)"
+	@echo ""
+	@echo "headers:       $(headers)"
+	@echo ""
+	@echo "systemheaders: $(systemheaders)"
+	@echo ""
+	@echo "object_dirs:   $(object_dirs)"
+	@echo ""
+	@echo "objects:       $(objects)"
+	@echo ""
 	@echo "deps:          $(deps)"
+	@echo ""
 
 clean:
 	rm -rf $(builddir)
