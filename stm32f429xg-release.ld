@@ -18,11 +18,11 @@ OUTPUT_FORMAT ("elf32-littlearm")
 GROUP(-lgcc -lc)
 ENTRY(Reset_Handler)
 
-/* Memory map for STM32F407xx. */ 
+/* Memory map for STM32F429xG. */ 
 MEMORY
 {
 	rom (rx)  : ORIGIN = 0x08000000, LENGTH = 1024K
-	ram (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
+	ram (rwx) : ORIGIN = 0x20000000, LENGTH = 192K
     ccm (rwx) : ORIGIN = 0x10000000, LENGTH = 64K
 }
 
