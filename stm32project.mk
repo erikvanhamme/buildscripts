@@ -59,8 +59,9 @@ warn_as := -Wall
 depgen = -MMD -MP -MF"$(@:%.o=%.d)"
 deps := $(patsubst %.o,%.d,$(objects))
 
-# linker script selection
-ldscript := buildscripts/$(chip)-$(buildmode).ld
+# Linker script handling.
+memldscript := $(builddir)/memory.ld
+ldscript := buildscripts/stm32fxxxxx-$(buildmode).ld
 
 # Compiler/assembler flags for release mode.
 ifeq ($(buildmode),release)
@@ -88,7 +89,7 @@ elffile := $(builddir)/$(project).elf
 binfile := $(builddir)/$(project).bin
 
 # List of phony targets.
-.PHONY: all info info_verbose clean flash oocd
+.PHONY: all info info_chip info_verbose clean flash oocd
 
 all: $(object_dirs) $(binfile)
 
@@ -111,6 +112,22 @@ info:
 	@echo ""
 	@echo "defines:       $(sort $(defines))"
 	@echo ""
+
+info_chip:
+	@echo "sup. chips:    $(sort $(supported_chips))"
+	@echo ""
+	@echo "chip:          $(chip)"
+	@echo "romsize:       $(romsize)"
+	@echo "ramsize:       $(ramsize)"
+	@echo "ccmsize:       $(ccmsize)"
+	@echo "----------------------------------------"
+	@echo "/* Memory map for $(chip). */"
+	@echo "MEMORY"
+	@echo "{"
+	@echo "	rom (rx)  : ORIGIN = 0x08000000, LENGTH = $(romsize)"
+	@echo "	ram (rwx) : ORIGIN = 0x20000000, LENGTH = $(ramsize)"
+	@echo "	ccm (rwx) : ORIGIN = 0x10000000, LENGTH = $(ccmsize)"
+	@echo "}"
 
 info_verbose: info
 	@echo "module_mks:    $(module_mks)"
@@ -136,7 +153,17 @@ clean:
 $(object_dirs):
 	mkdir -p $(object_dirs)
 
-$(elffile): $(objects)
+$(memldscript):
+	@echo "Generating memory.ld linker include script for chosen chip."
+	@echo "/* Memory map for $(chip). */" > $(memldscript)
+	@echo "MEMORY" >> $(memldscript)
+	@echo "{" >> $(memldscript)
+	@echo "	rom (rx)  : ORIGIN = 0x08000000, LENGTH = $(romsize)" >> $(memldscript)
+	@echo "	ram (rwx) : ORIGIN = 0x20000000, LENGTH = $(ramsize)" >> $(memldscript)
+	@echo "	ccm (rwx) : ORIGIN = 0x10000000, LENGTH = $(ccmsize)" >> $(memldscript)
+	@echo "}" >> $(memldscript)
+
+$(elffile): $(objects) $(memldscript)
 	$(ld) $(arch) $(ldflags) $(objects) -o $(elffile)
 	@echo "---------------------------------------"
 	$(os) $(elffile)
