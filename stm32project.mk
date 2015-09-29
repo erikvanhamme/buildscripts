@@ -113,21 +113,47 @@ info:
 	@echo "defines:       $(sort $(defines))"
 	@echo ""
 
+# ---- Chip info for stm32f4 --------------------------------------------------
+ifneq ($(strip $(findstring STM32F4,$(use))),)
 info_chip:
 	@echo "sup. chips:    $(sort $(supported_chips))"
 	@echo ""
 	@echo "chip:          $(chip)"
-	@echo "romsize:       $(romsize)"
-	@echo "ramsize:       $(ramsize)"
+	@echo "flashsize:     $(flashsize)"
+	@echo "sramsize:      $(sramsize)"
 	@echo "ccmsize:       $(ccmsize)"
 	@echo "----------------------------------------"
 	@echo "/* Memory map for $(chip). */"
 	@echo "MEMORY"
 	@echo "{"
-	@echo "	rom (rx)  : ORIGIN = 0x08000000, LENGTH = $(romsize)"
-	@echo "	ram (rwx) : ORIGIN = 0x20000000, LENGTH = $(ramsize)"
-	@echo "	ccm (rwx) : ORIGIN = 0x10000000, LENGTH = $(ccmsize)"
+	@echo "	flash (rx)  : ORIGIN = 0x08000000, LENGTH = $(flashsize)"
+	@echo "	sram (rwx)  : ORIGIN = 0x20000000, LENGTH = $(sramsize)"
+	@echo "	ccm (rwx)   : ORIGIN = 0x10000000, LENGTH = $(ccmsize)"
 	@echo "}"
+endif
+
+
+# ---- Chip info for stm32f7 --------------------------------------------------
+ifneq ($(strip $(findstring STM32F7,$(use))),)
+info_chip:
+	@echo "sup. chips:    $(sort $(supported_chips))"
+	@echo ""
+	@echo "chip:          $(chip)"
+	@echo "itcmsize:      $(itcmsize)"
+	@echo "flashsize:     $(flashsize)"
+	@echo "dtcmsize:      $(dtcmsize)"
+	@echo "sramsize:      $(sramsize)"
+	@echo "----------------------------------------"
+	@echo "/* Memory map for $(chip). */"
+	@echo "MEMORY"
+	@echo "{"
+	@echo "	itcm (rwx) : ORIGIN = 0x00000000, LENGTH = $(itcmsize)"
+	@echo "	flash (rx) : ORIGIN = 0x08000000, LENGTH = $(flashsize)"
+	@echo "	dtcm (rwx) : ORIGIN = 0x20000000, LENGTH = $(dtcmsize)"
+	@echo "	sram (rwx) : ORIGIN = 0x20010000, LENGTH = $(sramsize)"
+	@echo "}"
+endif
+
 
 info_verbose: info
 	@echo "module_mks:    $(module_mks)"
@@ -153,15 +179,38 @@ clean:
 $(object_dirs):
 	mkdir -p $(object_dirs)
 
+# ---- Memory mapping for stm32f4 ---------------------------------------------
+ifneq ($(strip $(findstring STM32F4,$(use))),)
+
 $(memldscript):
 	@echo "Generating memory.ld linker include script for chosen chip."
 	@echo "/* Memory map for $(chip). */" > $(memldscript)
 	@echo "MEMORY" >> $(memldscript)
 	@echo "{" >> $(memldscript)
-	@echo "	rom (rx)  : ORIGIN = 0x08000000, LENGTH = $(romsize)" >> $(memldscript)
-	@echo "	ram (rwx) : ORIGIN = 0x20000000, LENGTH = $(ramsize)" >> $(memldscript)
-	@echo "	ccm (rwx) : ORIGIN = 0x10000000, LENGTH = $(ccmsize)" >> $(memldscript)
+	@echo "	flash (rx)  : ORIGIN = 0x08000000, LENGTH = $(flashsize)" >> $(memldscript)
+	@echo "	sram (rwx)  : ORIGIN = 0x20000000, LENGTH = $(sramsize)" >> $(memldscript)
+	@echo "	ccm (rwx)   : ORIGIN = 0x10000000, LENGTH = $(ccmsize)" >> $(memldscript)
 	@echo "}" >> $(memldscript)
+
+endif
+
+
+# ---- Memory mapping for stm32f7 ---------------------------------------------
+ifneq ($(strip $(findstring STM32F7,$(use))),)
+
+$(memldscript):
+	@echo "Generating memory.ld linker include script for chosen chip."
+	@echo "/* Memory map for $(chip). */" > $(memldscript)
+	@echo "MEMORY" >> $(memldscript)
+	@echo "{" >> $(memldscript)
+	@echo "	itcm (rwx)  : ORIGIN = 0x00000000, LENGTH = $(itcmsize)" >> $(memldscript)
+	@echo "	flash (rx)  : ORIGIN = 0x08000000, LENGTH = $(flashsize)" >> $(memldscript)
+	@echo " dtcm (rwx)  : ORIGIN = 0x20000000, LENGTH = $(dtcmsize)" >> $(memldscript)
+	@echo "	sram (rwx)  : ORIGIN = 0x20010000, LENGTH = $(sramsize)" >> $(memldscript)
+	@echo "}" >> $(memldscript)
+
+endif
+
 
 $(elffile): $(objects) $(memldscript)
 	$(ld) $(arch) $(ldflags) $(objects) -o $(elffile)
